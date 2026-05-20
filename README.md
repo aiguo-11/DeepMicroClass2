@@ -1,3 +1,16 @@
+## Citation and Manuscript Status
+
+DeepMicroClass2 extends the original DeepMicroClass framework for multi-class taxonomic classification of complex marine metagenomic sequences.  
+If you use DeepMicroClass2, please cite the original DeepMicroClass publication:
+
+> Hou, S., Tang, T., Cheng, S., Liu, Y., Xia, T., Chen, T., Fuhrman, J. A., & Sun, F.  
+> DeepMicroClass sorts metagenomic contigs into prokaryotes, eukaryotes and viruses.  
+> *NAR Genomics and Bioinformatics*, 6(2), lqae044, 2024.  
+> https://doi.org/10.1093/nargab/lqae044
+
+The manuscript describing DeepMicroClass2, entitled  
+**“DeepMicroClass2: An Enhanced Deep Learning Framework for Multi-class Taxonomic Classification in Complex Marine Metagenomes”**,  
+is currently under submission.
 # DeepMicroClass2
 
 DeepMicroClass2 is a deep learning based genome sequence classification tool for metagenomic contig labeling and abundance (TPM) estimation.
@@ -102,7 +115,3 @@ The output directory may contain:
 - **mit**: Mitochondrion
 - **pls**: Plasmid
 - **prokvir**: Prokaryotic Virus
-
-## License
-
-[Your License Here]
