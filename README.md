@@ -1,3 +1,7 @@
+# DeepMicroClass2
+
+DeepMicroClass2 is a deep learning based genome sequence classification tool for metagenomic contig labeling and abundance (TPM) estimation.
+
 ## Citation and Manuscript Status
 
 DeepMicroClass2 extends the original DeepMicroClass framework for multi-class taxonomic classification of complex marine metagenomic sequences.  
@@ -11,9 +15,6 @@ If you use DeepMicroClass2, please cite the original DeepMicroClass publication:
 The manuscript describing DeepMicroClass2, entitled  
 **“DeepMicroClass2: An Enhanced Deep Learning Framework for Multi-class Taxonomic Classification in Complex Marine Metagenomes”**,  
 is currently under submission.
-# DeepMicroClass2
-
-DeepMicroClass2 is a deep learning based genome sequence classification tool for metagenomic contig labeling and abundance (TPM) estimation.
 
 ## Features
 
