@@ -47,7 +47,24 @@ def main():
     parser.add_argument("--out_dir", default="result", help="Output directory")
     parser.add_argument("--thresholds", help="Comma separated thresholds (8 values). Default: 0.625,0.4,0.39,0.435,0.95,0.26,0.83,0.998")
     
+    parser.add_argument("--low-confidence-label", choices=["bac", "NA"], default="bac",
+                        help="Fallback when no class passes its threshold. NA also applies the bacterial threshold (default: bac)")
+    tpm = parser.add_argument_group("TPM and read alignment")
+    tpm.add_argument("--tpm-threads", type=int, default=8, help="Alignment threads (default: 8)")
+    tpm.add_argument("--tpm-preset", choices=["sr", "map-ont", "map-pb", "map-hifi"], default="sr", help="minimap2 preset (default: sr)")
+    tpm.add_argument("--tpm-min-mapq", type=int, default=0, help="Minimum mapping quality, 0-255 (default: 0)")
+    tpm.add_argument("--tpm-exclude-secondary", action="store_true", help="Exclude secondary alignments from read counts")
+    tpm.add_argument("--tpm-exclude-supplementary", action="store_true", help="Exclude supplementary alignments from read counts")
+    tpm.add_argument("--tpm-min-contig-length", type=int, default=0, help="Minimum contig length in bp for TPM (default: 0)")
+    tpm.add_argument("--tpm-min-reads", type=int, default=0, help="Minimum alignment count per contig for TPM (default: 0)")
+
     args = parser.parse_args()
+    if args.tpm_threads < 1:
+        parser.error("--tpm-threads must be at least 1")
+    if not 0 <= args.tpm_min_mapq <= 255:
+        parser.error("--tpm-min-mapq must be between 0 and 255")
+    if args.tpm_min_contig_length < 0 or args.tpm_min_reads < 0:
+        parser.error("TPM minimum contig length and reads must be non-negative")
     
     os.makedirs(args.out_dir, exist_ok=True)
     device = get_device()
@@ -214,10 +231,9 @@ def main():
     with open(out_class_file, 'w') as f:
         f.write("contig\tlabel\tconfidence\t" + "\t".join(LABELS) + "\n")
         for sid, probs in results.items():
-            pred_label = assign_label(probs, thresholds, SEQ_ORDER, LABELS)
-            # Find confidence for the assigned label
-            pred_idx = LABELS.index(pred_label)
-            conf = probs[pred_idx]
+            pred_label = assign_label(probs, thresholds, SEQ_ORDER, LABELS, args.low_confidence_label)
+            # NA has no model output: report the largest of the eight probabilities.
+            conf = max(probs) if pred_label == "NA" else probs[LABELS.index(pred_label)]
             
             probs_str = "\t".join([f"{p:.4f}" for p in probs])
             f.write(f"{sid}\t{pred_label}\t{conf:.4f}\t{probs_str}\n")
@@ -227,7 +243,11 @@ def main():
     if args.fastq:
         print("Generating reads count from FASTQ...")
         try:
-            reads_file = run_alignment_pipeline(args.contig, args.fastq, args.out_dir)
+            reads_file = run_alignment_pipeline(
+                args.contig, args.fastq, args.out_dir, threads=args.tpm_threads,
+                preset=args.tpm_preset, min_mapq=args.tpm_min_mapq,
+                exclude_secondary=args.tpm_exclude_secondary,
+                exclude_supplementary=args.tpm_exclude_supplementary)
         except Exception as e:
             print(f"Error in alignment pipeline: {e}")
             reads_file = None
@@ -237,12 +257,15 @@ def main():
         lengths = load_lengths(args.contig)
         counts = load_counts(reads_file)
         
-        class_tpm = calculate_tpm_logic(results, lengths, counts, thresholds, SEQ_ORDER, LABELS)
+        class_tpm = calculate_tpm_logic(
+            results, lengths, counts, thresholds, SEQ_ORDER, LABELS,
+            min_contig_length=args.tpm_min_contig_length, min_reads=args.tpm_min_reads,
+            low_confidence_label=args.low_confidence_label)
         
         out_tpm_file = os.path.join(args.out_dir, "tpm_distribution.tsv")
         with open(out_tpm_file, 'w') as f:
             f.write("Class\tTPM\n")
-            for label in LABELS:
+            for label in class_tpm:
                 f.write(f"{label}\t{class_tpm[label]:.4f}\n")
             f.write(f"Total\t{sum(class_tpm.values()):.4f}\n")
             

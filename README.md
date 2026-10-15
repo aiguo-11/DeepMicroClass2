@@ -24,7 +24,7 @@ is currently under submission.
 - **Flexible inputs**:
   - Contig FASTA only: outputs contig classification results.
   - Contig FASTA + FASTQ: runs alignment, read counting, and 8-class TPM estimation automatically.
-- **Strict fallback policy**: sequences that do not pass their thresholds are assigned to `bac`.
+- **Configurable fallback policy**: sequences that do not pass their thresholds are assigned to `bac` by default, or `NA` with `--low-confidence-label NA`.
 - **GPU acceleration**: CUDA is detected and used automatically when available.
 
 ## Installation
@@ -68,6 +68,33 @@ If you also have raw FASTQ reads:
 python predict.py --contig examples/contigs_8class.fasta --fastq examples/reads_1.fastq examples/reads_2.fastq --out_dir result
 ```
 
+TPM alignment and filtering parameters can be customized:
+
+```bash
+python predict.py --contig input.fa --fastq reads_1.fastq reads_2.fastq --out_dir result --tpm-threads 16 --tpm-preset sr --tpm-min-mapq 20 --tpm-exclude-secondary --tpm-exclude-supplementary --tpm-min-contig-length 1000 --tpm-min-reads 5
+```
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `--tpm-threads` | `8` | Positive number of alignment threads |
+| `--tpm-preset` | `sr` | minimap2 preset: `sr`, `map-ont`, `map-pb`, or `map-hifi` |
+| `--tpm-min-mapq` | `0` | Minimum mapping quality (inclusive, 0–255) |
+| `--tpm-exclude-secondary` | off | Exclude secondary alignments from counts |
+| `--tpm-exclude-supplementary` | off | Exclude supplementary alignments from counts |
+| `--tpm-min-contig-length` | `0` | Minimum contig length in bp (inclusive) |
+| `--tpm-min-reads` | `0` | Minimum count per contig after alignment filtering (inclusive) |
+
+These options apply when `--fastq` is supplied. Defaults retain the previous
+counting and TPM behavior. Counts represent mapped alignment records, so paired
+mates are counted individually; secondary and supplementary records are included
+unless explicitly excluded. MAPQ 255 is retained when it meets the threshold.
+TPM is calculated over classified contigs passing the length and count filters:
+`RPK = count / (length_bp / 1000)` and `TPM = RPK / sum(RPK) * 1,000,000`.
+Filtering changes both the numerator and normalization denominator. Class TPM
+values sum to 1,000,000 when retained counts are positive, or zero otherwise.
+The existing `--thresholds` option controls class assignment; TPM filters do not
+change `classification.tsv`.
+
 ### 3. Other Model Modes
 
 - **Ultra-short sequences (300 bp)**:
@@ -90,6 +117,29 @@ You can override the 8 class thresholds with `--thresholds` in the following ord
 python predict.py --contig input.fa --thresholds 0.625000,0.400000,0.390625,0.435547,0.951172,0.261719,0.832031,0.997925
 ```
 
+### 5. Low-confidence assignments
+
+Use `--low-confidence-label NA` to label a contig `NA` when none of the eight
+class probabilities meets its corresponding threshold:
+
+```bash
+python predict.py --contig input.fa --out_dir result --low-confidence-label NA
+```
+
+This mode applies the bacterial threshold as well as the other seven thresholds.
+Classes passing thresholds still follow the existing priority order. Threshold
+equality counts as passing, and `--thresholds` can customize these cutoffs.
+The default `--low-confidence-label bac` preserves the original bacterial fallback.
+For `NA` rows in `classification.tsv`, `confidence` is the maximum of the eight
+model probabilities, not a probability for an additional trained class. The eight
+probability columns are unchanged. Contigs skipped by length or without model
+predictions remain omitted; this option only rejects existing predictions.
+
+When FASTQ is supplied, `tpm_distribution.tsv` includes an `NA` row in NA mode.
+NA contigs remain in the TPM normalization denominator and their TPM is assigned
+to this row, so the total across the eight classes plus NA remains 1,000,000 when
+retained counts are positive. NA is an unassigned result, not a ninth trained class.
+
 ## Example Data
 
 The `examples/` directory contains small synthetic files that can be used to validate every supported workflow:
@@ -104,7 +154,7 @@ The `examples/` directory contains small synthetic files that can be used to val
 The output directory may contain:
 
 - `classification.tsv`: predicted label, confidence, and per-class probabilities for each contig.
-- `tpm_distribution.tsv`: 8-class TPM summary when FASTQ reads are provided.
+- `tpm_distribution.tsv`: 8-class TPM summary when FASTQ reads are provided, with an additional `NA` row when NA fallback is enabled.
 
 ## Labels
 
